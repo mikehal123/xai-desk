@@ -46,7 +46,29 @@ public static class DoctrineGate
         Append(board, row);
     }
 
-    /// <summary>Owner only. Appends disagreement verdict overruled. The manager cannot call this.</summary>
+    /// <summary>Latest non-blocked row for one task and phase, or null when none is on the log.</summary>
+    public static DoctrineLogRow? Latest(SwarmBoard board, string taskId, string phase)
+    {
+        ArgumentNullException.ThrowIfNull(board);
+        var rows = For(board, taskId, phase);
+        return rows.Count == 0 ? null : rows[^1];
+    }
+
+    /// <summary>True only when the latest disagreement row for the task is holds. The Overrule button uses this.</summary>
+    public static bool OverruleEnabled(SwarmBoard board, string taskId)
+    {
+        var row = Latest(board, taskId, DoctrinePhase.Disagreement);
+        return row is not null && string.Equals(row.Verdict, "holds", StringComparison.Ordinal);
+    }
+
+    /// <summary>True only when the latest rollback row is IRREVERSIBLE and owner_yes is false. The Owner yes button uses this.</summary>
+    public static bool OwnerYesVisible(SwarmBoard board, string taskId)
+    {
+        var row = Latest(board, taskId, DoctrinePhase.Rollback);
+        return row is not null && row.Verdict == "IRREVERSIBLE" && !row.OwnerYes;
+    }
+
+    /// <summary>Desk Overrule button only. Appends disagreement verdict overruled. No connector tool may call this.</summary>
     public static void Overrule(SwarmBoard board, string taskId)
     {
         ArgumentNullException.ThrowIfNull(board);
@@ -61,7 +83,7 @@ public static class DoctrineGate
         });
     }
 
-    /// <summary>Owner only. Appends the latest IRREVERSIBLE rollback again with the owner's yes. The manager cannot call this.</summary>
+    /// <summary>Desk Owner yes button only. Appends the latest IRREVERSIBLE rollback again with the owner's yes. Does not move the task. No connector tool may call this.</summary>
     public static void OwnerYes(SwarmBoard board, string taskId)
     {
         ArgumentNullException.ThrowIfNull(board);

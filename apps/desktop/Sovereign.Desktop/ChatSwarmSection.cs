@@ -494,6 +494,8 @@ internal sealed partial class ChatConversation
         header.Children.Add(copy);
         Grid.SetColumn(identity, 1); header.Children.Add(identity);
         Grid.SetColumn(pill, 2); header.Children.Add(pill);
+        var doctrine = DoctrineTaskButtons(board, task, titleText);
+        Grid.SetColumn(doctrine, 3); header.Children.Add(doctrine);
         var respawn = new Button
         {
             Content = "Respawn", FontFamily = DeskTheme.UiFont, FontSize = 11,
@@ -511,9 +513,9 @@ internal sealed partial class ChatConversation
         AutomationName(respawn, "Respawn swarm worker " + titleText);
         ToolTipService.SetToolTip(respawn, "Stops only this helper and restarts its task once with a narrower scope. A second use fails this task. The main agent and other workers keep running.");
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        Grid.SetColumn(respawn, 3); header.Children.Add(respawn);
+        Grid.SetColumn(respawn, 4); header.Children.Add(respawn);
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        Grid.SetColumn(retries, 4); header.Children.Add(retries);
+        Grid.SetColumn(retries, 5); header.Children.Add(retries);
         var note = SwarmSection.ReadNote(task.VerifierNote);
         var chatHost = new StackPanel { Spacing = DeskTheme.Space8 };
         var chatLabel = SubagentCaption("Worker chat");
@@ -889,6 +891,98 @@ internal sealed partial class ChatConversation
         if (board.Tasks.Count == 0 || board.Tasks.Any(task => task.Status is not (SwarmStatus.Done or SwarmStatus.Failed))) return;
         SwarmMemory.RememberRun(_profileDirectory, _projectFolder, board, _saved.Turns.LastOrDefault()?.Reply);
         _swarmMemoryCaptured = board.Id;
+    }
+
+    private StackPanel DoctrineTaskButtons(SwarmBoard board, SwarmTask task, string titleText)
+    {
+        var taskId = task.Id ?? "";
+        var overrule = new Button
+        {
+            Content = "Overrule",
+            FontFamily = DeskTheme.UiFont,
+            FontSize = 11,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            MinWidth = 44,
+            MinHeight = 16,
+            Padding = new Thickness(4, 0, 4, 0),
+            Background = DeskTheme.Raised,
+            Foreground = DeskTheme.Text,
+            BorderBrush = DeskTheme.Text,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(3),
+            VerticalAlignment = VerticalAlignment.Center,
+            IsEnabled = DoctrineGate.OverruleEnabled(board, taskId)
+        };
+        AutomationName(overrule, "Overrule " + titleText);
+        ToolTipService.SetToolTip(overrule, "Appends overruled when the latest disagreement row holds. A second click does nothing.");
+        overrule.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler((_, e) => e.Handled = true), true);
+        overrule.Click += (_, _) => OverruleSwarmTask(board, taskId, overrule);
+        var ownerYes = new Button
+        {
+            Content = "Owner yes",
+            FontFamily = DeskTheme.UiFont,
+            FontSize = 11,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            MinWidth = 44,
+            MinHeight = 16,
+            Padding = new Thickness(4, 0, 4, 0),
+            Background = DeskTheme.Raised,
+            Foreground = DeskTheme.Text,
+            BorderBrush = DeskTheme.Text,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(3),
+            VerticalAlignment = VerticalAlignment.Center,
+            Visibility = DoctrineGate.OwnerYesVisible(board, taskId) ? Visibility.Visible : Visibility.Collapsed
+        };
+        AutomationName(ownerYes, "Owner yes " + titleText);
+        ToolTipService.SetToolTip(ownerYes, "Appends the owner's yes on the latest IRREVERSIBLE rollback row. Does not mark the task done.");
+        ownerYes.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler((_, e) => e.Handled = true), true);
+        ownerYes.Click += (_, _) => OwnerYesSwarmTask(board, taskId, ownerYes);
+        return new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = DeskTheme.Space4,
+            VerticalAlignment = VerticalAlignment.Center,
+            Children = { overrule, ownerYes }
+        };
+    }
+
+    private void OverruleSwarmTask(SwarmBoard board, string taskId, Button button)
+    {
+        if (!button.IsEnabled) return;
+        try
+        {
+            if (!DoctrineGate.OverruleEnabled(board, taskId))
+            {
+                button.IsEnabled = false;
+                return;
+            }
+            DoctrineGate.Overrule(board, taskId);
+            button.IsEnabled = false;
+            ReloadSwarmSection();
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or InvalidOperationException or UnauthorizedAccessException or KeyNotFoundException)
+        {
+        }
+    }
+
+    private void OwnerYesSwarmTask(SwarmBoard board, string taskId, Button button)
+    {
+        if (button.Visibility != Visibility.Visible) return;
+        try
+        {
+            if (!DoctrineGate.OwnerYesVisible(board, taskId))
+            {
+                button.Visibility = Visibility.Collapsed;
+                return;
+            }
+            DoctrineGate.OwnerYes(board, taskId);
+            button.Visibility = Visibility.Collapsed;
+            ReloadSwarmSection();
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or InvalidOperationException or UnauthorizedAccessException or KeyNotFoundException)
+        {
+        }
     }
 
     private sealed class SwarmActivityBar : Button

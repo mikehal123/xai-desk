@@ -210,8 +210,8 @@ public sealed class DoctrineGateTests
         }
         Assert.Equal(1, assigns);
         var host = File.ReadAllText(Path.Combine(connector, "ConnectorHost.cs"));
-        Assert.Contains("grokbot_doctrine_overrule", host, StringComparison.Ordinal);
-        Assert.Contains("grokbot_doctrine_owner_yes", host, StringComparison.Ordinal);
+        Assert.DoesNotContain("grokbot_doctrine_overrule", host, StringComparison.Ordinal);
+        Assert.DoesNotContain("grokbot_doctrine_owner_yes", host, StringComparison.Ordinal);
         Assert.Contains("swarm_assumption", host, StringComparison.Ordinal);
         Assert.Contains("swarm_rollback", host, StringComparison.Ordinal);
         Assert.Contains("swarm_decay", host, StringComparison.Ordinal);
@@ -220,6 +220,60 @@ public sealed class DoctrineGateTests
         var writeAt = loop.IndexOf("File.WriteAllText(file", StringComparison.Ordinal);
         var guardAt = loop.IndexOf("DoctrineGate.GuardWrite", StringComparison.Ordinal);
         Assert.True(guardAt >= 0 && guardAt < writeAt);
+    }
+
+    [Fact]
+    public void Overrule_appends_only_while_the_latest_disagreement_holds()
+    {
+        using var fx = new Board("simulate the doctrine");
+        var log = DoctrineGate.LogPath(fx.Swarm);
+        var boardBefore = File.ReadAllText(fx.Swarm.BoardPath);
+        Assert.Equal("holds", DoctrineGate.Latest(fx.Swarm, fx.Id, DoctrinePhase.Disagreement)!.Verdict);
+        Assert.True(DoctrineGate.OverruleEnabled(fx.Swarm, fx.Id));
+        DoctrineGate.Overrule(fx.Swarm, fx.Id);
+        var after = File.ReadAllText(log);
+        Assert.Contains("\"verdict\":\"overruled\"", after, StringComparison.Ordinal);
+        Assert.Equal("overruled", DoctrineGate.Latest(fx.Swarm, fx.Id, DoctrinePhase.Disagreement)!.Verdict);
+        Assert.False(DoctrineGate.OverruleEnabled(fx.Swarm, fx.Id));
+        Assert.Equal(boardBefore, File.ReadAllText(fx.Swarm.BoardPath));
+        Assert.Equal(SwarmStatus.Todo, Fresh(fx).Status);
+        var snapshot = File.ReadAllText(log);
+        if (DoctrineGate.OverruleEnabled(fx.Swarm, fx.Id)) DoctrineGate.Overrule(fx.Swarm, fx.Id);
+        Assert.Equal(snapshot, File.ReadAllText(log));
+    }
+
+    [Fact]
+    public void Owner_yes_appends_the_row_and_leaves_the_task_open()
+    {
+        using var fx = new Board("simulate the doctrine");
+        Assert.False(DoctrineGate.OwnerYesVisible(fx.Swarm, fx.Id));
+        DoctrineGate.AppendRollback(fx.Swarm, fx.Id, "REVERSIBLE", "Delete the new file.", "notes.txt");
+        Assert.False(DoctrineGate.OwnerYesVisible(fx.Swarm, fx.Id));
+        DoctrineGate.AppendRollback(fx.Swarm, fx.Id, "IRREVERSIBLE", "The file would be gone.", "notes.txt");
+        Assert.True(DoctrineGate.OwnerYesVisible(fx.Swarm, fx.Id));
+        DoctrineGate.AppendRollback(fx.Swarm, fx.Id, "REVERSIBLE", "Delete the later file.", "later.txt");
+        Assert.False(DoctrineGate.OwnerYesVisible(fx.Swarm, fx.Id));
+        DoctrineGate.AppendRollback(fx.Swarm, fx.Id, "IRREVERSIBLE", "The file would be gone.", "notes.txt");
+        Assert.True(DoctrineGate.OwnerYesVisible(fx.Swarm, fx.Id));
+        var boardBefore = File.ReadAllText(fx.Swarm.BoardPath);
+        var status = Fresh(fx).Status;
+        DoctrineGate.OwnerYes(fx.Swarm, fx.Id);
+        var saved = Fresh(fx);
+        Assert.Equal(status, saved.Status);
+        Assert.NotEqual(SwarmStatus.Done, saved.Status);
+        Assert.Equal(boardBefore, File.ReadAllText(fx.Swarm.BoardPath));
+        var yes = DoctrineGate.Latest(fx.Swarm, fx.Id, DoctrinePhase.Rollback);
+        Assert.NotNull(yes);
+        Assert.Equal("IRREVERSIBLE", yes.Verdict);
+        Assert.True(yes.OwnerYes);
+        Assert.False(DoctrineGate.OwnerYesVisible(fx.Swarm, fx.Id));
+        var log = File.ReadAllText(DoctrineGate.LogPath(fx.Swarm));
+        Assert.Contains("\"owner_yes\":true", log, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"phase\":\"verification\"", log, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"phase\":\"done\"", log, StringComparison.Ordinal);
+        var snapshot = File.ReadAllText(DoctrineGate.LogPath(fx.Swarm));
+        if (DoctrineGate.OwnerYesVisible(fx.Swarm, fx.Id)) DoctrineGate.OwnerYes(fx.Swarm, fx.Id);
+        Assert.Equal(snapshot, File.ReadAllText(DoctrineGate.LogPath(fx.Swarm)));
     }
 
     [Fact]
