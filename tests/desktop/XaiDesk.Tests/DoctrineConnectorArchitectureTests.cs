@@ -60,9 +60,15 @@ public sealed class DoctrineConnectorArchitectureTests
         var yesBody = desk[yesStart..yesEnd];
         Assert.Contains("DoctrineGate.Overrule(", overBody, StringComparison.Ordinal);
         Assert.Contains("ReloadSwarmSection()", overBody, StringComparison.Ordinal);
+        Assert.Contains("DoctrineGate.ClickError(", overBody, StringComparison.Ordinal);
+        Assert.Contains("_chatStatus.Text", overBody, StringComparison.Ordinal);
+        Assert.Contains("ex.Message", overBody, StringComparison.Ordinal);
         Assert.DoesNotContain("DoctrineGate.OwnerYes(", overBody, StringComparison.Ordinal);
         Assert.Contains("DoctrineGate.OwnerYes(", yesBody, StringComparison.Ordinal);
         Assert.Contains("ReloadSwarmSection()", yesBody, StringComparison.Ordinal);
+        Assert.Contains("DoctrineGate.ClickError(", yesBody, StringComparison.Ordinal);
+        Assert.Contains("_chatStatus.Text", yesBody, StringComparison.Ordinal);
+        Assert.Contains("ex.Message", yesBody, StringComparison.Ordinal);
         Assert.DoesNotContain("Verify", yesBody, StringComparison.Ordinal);
         Assert.DoesNotContain("SwarmStatus.Done", yesBody, StringComparison.Ordinal);
         Assert.DoesNotContain(".Status", yesBody, StringComparison.Ordinal);

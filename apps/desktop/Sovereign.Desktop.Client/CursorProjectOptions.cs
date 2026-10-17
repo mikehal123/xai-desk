@@ -14,6 +14,11 @@ public sealed class CursorProjectOptions
     };
     public bool EnableSubagents { get; init; } = true;
     public string? SwarmBrief { get; init; }
+    /// <summary>Loopback URL of the in-app swarm manager tool server. Not the Grok Bot connector.</summary>
+    public string? SwarmManagerUrl { get; init; }
+    public string? SwarmManagerToken { get; init; }
+    /// <summary>Stdio command for the swarm manager tool server when the agent has no HTTP MCP capability.</summary>
+    public string? SwarmManagerCommand { get; init; }
     /// <summary>Null and false use the selected model for every role. True uses role rankings.</summary>
     public bool? SwarmMixedModels { get; init; }
     public string? SwarmRoleModelsDirectory { get; init; }

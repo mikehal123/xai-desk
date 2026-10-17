@@ -38,11 +38,23 @@
   <ItemGroup>
     <ProjectReference Include="..\phone\Sovereign.Desktop.Phone.csproj" />
     <ProjectReference Include="..\connector\Sovereign.Desktop.Connector.csproj" />
+    <ProjectReference Include="..\swarm-manager\Sovereign.Desktop.SwarmManager.csproj" />
     <ProjectReference Include="..\Sovereign.Desktop.Updates\Sovereign.Desktop.Updates.csproj" />
     <ProjectReference Include="..\Sovereign.Desktop.Core\Sovereign.Desktop.Core.csproj" />
     <ProjectReference Include="..\Sovereign.Desktop.Client\Sovereign.Desktop.Client.csproj" />
     <ProjectReference Include="..\Sovereign.Desktop.Presentation\Sovereign.Desktop.Presentation.csproj" />
   </ItemGroup>
+  <Target Name="CopySwarmManagerExe" AfterTargets="Build">
+    <PropertyGroup>
+      <_SwarmManagerDir>$(MSBuildThisFileDirectory)..\swarm-manager\bin\$(Configuration)\net10.0\</_SwarmManagerDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <_SwarmManagerExe Include="$(_SwarmManagerDir)Sovereign.Desktop.SwarmManager.exe" Condition="Exists('$(_SwarmManagerDir)Sovereign.Desktop.SwarmManager.exe')" />
+      <_SwarmManagerExe Include="$(_SwarmManagerDir)Sovereign.Desktop.SwarmManager" Condition="Exists('$(_SwarmManagerDir)Sovereign.Desktop.SwarmManager')" />
+      <_SwarmManagerExe Include="$(_SwarmManagerDir)Sovereign.Desktop.SwarmManager.dll" Condition="Exists('$(_SwarmManagerDir)Sovereign.Desktop.SwarmManager.dll')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_SwarmManagerExe)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" Condition="'@(_SwarmManagerExe)' != ''" />
+  </Target>
   <UsingTask TaskName="ResolveWindowsDesktopAutomationTask" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
     <ParameterGroup>
       <NetCoreRoot ParameterType="System.String" />

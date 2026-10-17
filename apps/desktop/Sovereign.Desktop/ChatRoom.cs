@@ -517,6 +517,25 @@ internal sealed partial class ChatConversation
         _chatInstall.IsEnabled = show && !_chatBusy;
     }
 
+    private async Task<(string? Url, string? Token, string? Command)> SwarmToolEndpointAsync(CancellationToken ct)
+    {
+        if (SwarmManagerBrief() is not { Length: > 0 }) return (null, null, null);
+        string? url = null;
+        string? token = null;
+        try
+        {
+            var host = await SwarmManagerHost.SharedAsync(ct);
+            url = host.Url;
+            token = host.Token;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException)
+        {
+            url = null;
+            token = null;
+        }
+        return (url, token, SwarmManagerSession.FindCommand());
+    }
+
     private static string ReadXaiApiKey()
     {
         try
@@ -574,10 +593,14 @@ internal sealed partial class ChatConversation
                 _grokBuild?.Dispose();
                 _needsContext = _saved.Turns.Length > 0;
                 var epoch = ++_projectSessionEpoch;
+                var swarmTools = await SwarmToolEndpointAsync(timeout.Token);
                 var grok = new GrokBuildChatClient(_projectFolder ?? Path.Combine(_profileDirectory, "grok-build-workspace"),
                     _projectFolder is null ? null : new CursorProjectOptions {
                         Mode = _saved.ProjectMode, Permissions = _saved.Permissions, EnableSubagents = _saved.SubagentsEnabled,
                         SwarmBrief = SwarmManagerBrief(),
+                        SwarmManagerUrl = swarmTools.Url,
+                        SwarmManagerToken = swarmTools.Token,
+                        SwarmManagerCommand = swarmTools.Command,
                         RequestPermission = RequestProjectPermissionAsync
                     }, activity => { if (epoch == _projectSessionEpoch) { _activeChatTurn?.Observe(activity); _partialActivity.Enqueue(activity); } });
                 _grokBuild = grok;
@@ -609,10 +632,14 @@ internal sealed partial class ChatConversation
                 _cursorChat?.Dispose();
                 _needsContext = _saved.Turns.Length > 0;
                 var epoch = ++_projectSessionEpoch;
+                var swarmTools = await SwarmToolEndpointAsync(timeout.Token);
                 _cursorChat = new CursorChatClient(_projectFolder ?? Path.Combine(_profileDirectory, "cursor-chat-workspace"),
                     _projectFolder is null ? null : new CursorProjectOptions {
                         Mode = _saved.ProjectMode, Permissions = _saved.Permissions, EnableSubagents = _saved.SubagentsEnabled,
                         SwarmBrief = SwarmManagerBrief(),
+                        SwarmManagerUrl = swarmTools.Url,
+                        SwarmManagerToken = swarmTools.Token,
+                        SwarmManagerCommand = swarmTools.Command,
                         SwarmRoleModelsDirectory = _profileDirectory,
                         SwarmMixedModels = SwarmRoleModels.IsMixed(_saved.SwarmHire),
                         RequestPermission = RequestProjectPermissionAsync

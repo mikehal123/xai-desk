@@ -4,10 +4,11 @@ namespace Sovereign.Desktop.Connector;
 
 public readonly record struct SwarmNote(string Claim, string Evidence, string Verdict);
 
-public readonly record struct SwarmProgress(int Done, int Total, int Todo, int Doing, int Review, int Failed)
+public readonly record struct SwarmProgress(int Done, int Total, int Todo, int Doing, int Review, int Failed, int Unverified = 0)
 {
     public double Fraction => Total == 0 ? 0 : (double)Done / Total;
-    public string Counts => "todo " + Todo + " · doing " + Doing + " · review " + Review + " · done " + Done + " · failed " + Failed;
+    public string Counts => "todo " + Todo + " · doing " + Doing + " · review " + Review + " · done " + Done + " · failed " + Failed
+        + (Unverified > 0 ? " · unverified " + Unverified : "");
 }
 
 /// <summary>The conversation board is {swarm root}/{conversation id}/board.json.</summary>
@@ -129,13 +130,34 @@ public static class SwarmSection
     public static string StatusLabel(string? status)
     {
         var text = (status ?? "").Trim().ToLowerInvariant();
-        return text is "todo" or "doing" or "review" or "done" or "failed" ? text : "todo";
+        return text is "todo" or "doing" or "review" or "done" or "failed" or "unverified" ? text : "todo";
+    }
+
+    /// <summary>
+    /// Read marks a door status with no doctrine row as unverified. Any other Shown value is ignored,
+    /// so a later Start or Verify on the same object is not stuck on the status from that read.
+    /// </summary>
+    public static string DisplayStatus(SwarmTask? task)
+    {
+        if (task is null) return StatusLabel(null);
+        if (string.Equals(task.Shown, "unverified", StringComparison.Ordinal)) return "unverified";
+        return StatusLabel(task.Status);
+    }
+
+    /// <summary>Panel path. doing, review, and done without the doctrine row for that door are unverified.</summary>
+    public static string PanelStatus(SwarmBoard board, SwarmTask task) => DoctrineGate.ShownStatus(board, task);
+
+    /// <summary>Chip text the swarm panel shows. A done label is the only one with a check mark.</summary>
+    public static string TaskChip(string? label, bool runFinished)
+    {
+        var chip = SwarmRunView.TaskLabel(label, runFinished);
+        return label == SwarmStatus.Done ? "\u2713 " + chip : chip;
     }
 
     public static string PillState(string? status) => StatusLabel(status) switch
     {
         "doing" => "running",
-        "review" => "blocked",
+        "review" or "unverified" => "blocked",
         "done" => "completed",
         "failed" => "failed",
         _ => "queued"
@@ -149,23 +171,25 @@ public static class SwarmSection
         var review = 0;
         var done = 0;
         var failed = 0;
+        var unverified = 0;
         foreach (var task in list)
         {
-            switch (StatusLabel(task.Status))
+            switch (DisplayStatus(task))
             {
                 case "doing": doing++; break;
                 case "review": review++; break;
                 case "done": done++; break;
                 case "failed": failed++; break;
+                case "unverified": unverified++; break;
                 default: todo++; break;
             }
         }
-        return new SwarmProgress(done, list.Count, todo, doing, review, failed);
+        return new SwarmProgress(done, list.Count, todo, doing, review, failed, unverified);
     }
 
     public static string? FeedLine(string? previousStatus, SwarmTask task)
     {
-        var status = StatusLabel(task.Status);
+        var status = DisplayStatus(task);
         if (previousStatus is not null && StatusLabel(previousStatus) == status) return null;
         var role = string.IsNullOrWhiteSpace(task.Role) ? "worker" : task.Role.Trim();
         var title = string.IsNullOrWhiteSpace(task.Title) ? task.Id : task.Title.Trim();
@@ -189,7 +213,7 @@ public static class SwarmSection
             if (line.Length == 0) continue;
             return line.Length <= 96 ? line : line[..96];
         }
-        return StatusLabel(task.Status);
+        return DisplayStatus(task);
     }
 
     public static bool StopRunClock(string? reviewStatus, IEnumerable<string?>? taskStatuses)

@@ -152,7 +152,7 @@ public static class SwarmSchedule
     }
 
     public static bool HasOpenWork(SwarmBoard board) =>
-        board.Tasks.Any(task => SwarmSection.StatusLabel(task.Status) is not ("done" or "failed"));
+        board.Tasks.Any(task => SwarmSection.DisplayStatus(task) is not ("done" or "failed"));
 
     public static void EnsureSameRun(SwarmBoard existing, SwarmBoard incoming)
     {

@@ -240,7 +240,7 @@ internal sealed class CursorAcpSession(TextReader reader, TextWriter writer, Cur
         SupportsImages = init.TryGetProperty("agentCapabilities", out var capabilities) && capabilities.TryGetProperty("promptCapabilities", out var promptCaps) && promptCaps.TryGetProperty("image", out var image) && image.ValueKind == JsonValueKind.True;
         _supportsSubagents = capabilities.ValueKind == JsonValueKind.Object && capabilities.TryGetProperty("sessionCapabilities", out var sessions) && sessions.TryGetProperty("subagents", out _);
         // Older ACP runtimes can still serve ordinary project chats. Helpers are offered only after negotiation.
-        var session = await CallAsync("session/new", new { cwd = workspace, mcpServers = Array.Empty<object>() }, null, ct);
+        var session = await CallAsync("session/new", new { cwd = workspace, mcpServers = SwarmManagerSession.McpServers(project, init) }, null, ct);
         _sessionId = session.GetProperty("sessionId").GetString() ?? throw new IOException("Cursor returned no session.");
         var listing = CursorModelCatalog.Parse(session.GetProperty("models"));
         Models = listing.Models;

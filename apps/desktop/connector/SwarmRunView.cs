@@ -19,7 +19,7 @@ public static class SwarmRunView
 
     public static SwarmRunPhase Phase(SwarmBoard board)
     {
-        var statuses = board.Tasks.Select(task => task?.Status).ToArray();
+        var statuses = board.Tasks.Select(task => (string?)SwarmSection.DisplayStatus(task)).ToArray();
         if (SwarmSection.StopRunClock(board.ReviewStatus, statuses)) return SwarmRunPhase.Done;
         var review = (board.ReviewStatus ?? "").Trim();
         if (review == SwarmHandoffReview.WaitingStatus || review == "Waiting for review") return SwarmRunPhase.Running;

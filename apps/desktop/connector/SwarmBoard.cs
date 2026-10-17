@@ -60,6 +60,8 @@ public sealed class SwarmTask
     [JsonPropertyName("after")] public List<string> After { get; set; } = [];
     [JsonPropertyName("phase")] public string Phase { get; set; } = "";
     [JsonPropertyName("pinned_goal")] public string PinnedGoal { get; set; } = "";
+    /// <summary>Display status from <see cref="SwarmBoard.Read"/>. Not stored in board.json.</summary>
+    [JsonIgnore] public string Shown { get; set; } = "";
 }
 
 public sealed class SwarmBoard
@@ -142,6 +144,7 @@ public sealed class SwarmBoard
             task.After ??= [];
             task.Phase ??= "";
             task.PinnedGoal ??= "";
+            task.Shown = DoctrineGate.ShownStatus(board, task);
         }
         return board;
     }

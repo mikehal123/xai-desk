@@ -83,6 +83,28 @@ public static class DoctrineGate
         });
     }
 
+    /// <summary>Text for a desk button whose append failed. A silent return is not a click.</summary>
+    public static string ClickError(string button, string? message)
+    {
+        var detail = string.IsNullOrWhiteSpace(message) ? "The append did not finish." : message.Trim().Replace('\r', ' ').Replace('\n', ' ');
+        return button + " failed: " + detail;
+    }
+
+    /// <summary>
+    /// Status the panel may show. doing, review, and done stay only when doctrine.jsonl has the row that door requires.
+    /// Writing done or unverified into board.json does not clear this.
+    /// </summary>
+    public static string ShownStatus(SwarmBoard board, SwarmTask task)
+    {
+        ArgumentNullException.ThrowIfNull(board);
+        ArgumentNullException.ThrowIfNull(task);
+        var raw = (task.Status ?? "").Trim();
+        if (raw.Equals("unverified", StringComparison.OrdinalIgnoreCase)) return "unverified";
+        var label = SwarmSection.StatusLabel(raw);
+        if (label is not ("doing" or "review" or "done")) return label;
+        return DoorMatches(board, task.Id, label) ? label : "unverified";
+    }
+
     /// <summary>Desk Owner yes button only. Appends the latest IRREVERSIBLE rollback again with the owner's yes. Does not move the task. No connector tool may call this.</summary>
     public static void OwnerYes(SwarmBoard board, string taskId)
     {
@@ -245,6 +267,38 @@ public static class DoctrineGate
             throw Fail(board, taskId, "write", "no rollback row for " + wanted, wanted);
         if (match.Verdict == "IRREVERSIBLE" && !match.OwnerYes)
             throw Fail(board, taskId, "write", "IRREVERSIBLE needs the owner's yes", wanted);
+    }
+
+    static bool DoorMatches(SwarmBoard board, string taskId, string status) => status switch
+    {
+        "doing" => StartDoor(board, taskId),
+        "review" => SubmitDoor(board, taskId),
+        "done" => VerifyDoor(board, taskId),
+        _ => true
+    };
+
+    static bool StartDoor(SwarmBoard board, string taskId)
+    {
+        var row = Latest(board, taskId, DoctrinePhase.Disagreement);
+        if (row is null || !string.Equals(row.Verdict, "overruled", StringComparison.Ordinal)) return false;
+        return For(board, taskId, DoctrinePhase.Assumption).Any(item => Closed(item.Verdict, DoctrineAnswer.Assumption));
+    }
+
+    static bool SubmitDoor(SwarmBoard board, string taskId)
+    {
+        var rolls = For(board, taskId, DoctrinePhase.Rollback);
+        if (rolls.Count == 0 || !Closed(rolls[^1].Verdict, DoctrineAnswer.Rollback)) return false;
+        if (string.IsNullOrWhiteSpace(rolls[^1].Text)) return false;
+        if (rolls[^1].Verdict == "IRREVERSIBLE" && !rolls[^1].OwnerYes) return false;
+        var decay = For(board, taskId, DoctrinePhase.Decay);
+        if (decay.Count == 0) return false;
+        return string.Equals(decay[^1].PinnedGoal ?? "", board.Goal ?? "", StringComparison.Ordinal);
+    }
+
+    static bool VerifyDoor(SwarmBoard board, string taskId)
+    {
+        var reports = For(board, taskId, DoctrinePhase.Verification);
+        return reports.Count > 0 && string.Equals(reports[^1].Verdict, "pass", StringComparison.Ordinal);
     }
 
     static List<DoctrineLogRow> For(SwarmBoard board, string taskId, string phase)

@@ -414,7 +414,7 @@ internal sealed partial class ChatConversation
         foreach (var task in board.Tasks)
         {
             var id = task.Id ?? "";
-            var label = SwarmSection.StatusLabel(task.Status);
+            var label = SwarmSection.PanelStatus(board, task);
             var known = _swarmStatus.TryGetValue(id, out var previous);
             var transition = known && !string.Equals(previous, label, StringComparison.Ordinal);
             if (!known || transition) AppendSwarmFeed(SwarmSection.FeedLine(known ? previous : null, task));
@@ -476,7 +476,7 @@ internal sealed partial class ChatConversation
         var chip = SwarmRunView.TaskLabel(label, finished);
         var state = new TextBlock
         {
-            Text = label == "done" ? "\u2713 " + chip : chip, FontFamily = DeskTheme.UiFont, FontSize = DeskTheme.SizeCaption,
+            Text = SwarmSection.TaskChip(label, finished), FontFamily = DeskTheme.UiFont, FontSize = DeskTheme.SizeCaption,
             Foreground = DeskTheme.StatusForeground(SwarmSection.PillState(label)), MaxLines = 1, TextWrapping = TextWrapping.NoWrap
         };
         var pill = SubagentStatusChip(state);
@@ -888,7 +888,7 @@ internal sealed partial class ChatConversation
     private void CaptureSwarmMemory(SwarmBoard board)
     {
         if (_projectFolder is null || string.IsNullOrWhiteSpace(board.Id) || board.Id == _swarmMemoryCaptured) return;
-        if (board.Tasks.Count == 0 || board.Tasks.Any(task => task.Status is not (SwarmStatus.Done or SwarmStatus.Failed))) return;
+        if (board.Tasks.Count == 0 || board.Tasks.Any(task => SwarmSection.DisplayStatus(task) is not (SwarmStatus.Done or SwarmStatus.Failed))) return;
         SwarmMemory.RememberRun(_profileDirectory, _projectFolder, board, _saved.Turns.LastOrDefault()?.Reply);
         _swarmMemoryCaptured = board.Id;
     }
@@ -955,6 +955,8 @@ internal sealed partial class ChatConversation
             if (!DoctrineGate.OverruleEnabled(board, taskId))
             {
                 button.IsEnabled = false;
+                _chatStatus.Text = DoctrineGate.ClickError("Overrule", "The disagreement row does not hold.");
+                ToolTipService.SetToolTip(button, _chatStatus.Text);
                 return;
             }
             DoctrineGate.Overrule(board, taskId);
@@ -963,6 +965,8 @@ internal sealed partial class ChatConversation
         }
         catch (Exception ex) when (ex is ArgumentException or IOException or InvalidOperationException or UnauthorizedAccessException or KeyNotFoundException)
         {
+            _chatStatus.Text = DoctrineGate.ClickError("Overrule", ex.Message);
+            ToolTipService.SetToolTip(button, _chatStatus.Text);
         }
     }
 
@@ -974,6 +978,8 @@ internal sealed partial class ChatConversation
             if (!DoctrineGate.OwnerYesVisible(board, taskId))
             {
                 button.Visibility = Visibility.Collapsed;
+                _chatStatus.Text = DoctrineGate.ClickError("Owner yes", "The rollback row is not waiting for the owner's yes.");
+                ToolTipService.SetToolTip(button, _chatStatus.Text);
                 return;
             }
             DoctrineGate.OwnerYes(board, taskId);
@@ -982,6 +988,8 @@ internal sealed partial class ChatConversation
         }
         catch (Exception ex) when (ex is ArgumentException or IOException or InvalidOperationException or UnauthorizedAccessException or KeyNotFoundException)
         {
+            _chatStatus.Text = DoctrineGate.ClickError("Owner yes", ex.Message);
+            ToolTipService.SetToolTip(button, _chatStatus.Text);
         }
     }
 

@@ -8,16 +8,17 @@ internal static class SwarmPanels
     public static CursorSubagent Snapshot(SwarmBoard board, SwarmTask task)
     {
         var view = SwarmLoop.View(board, task);
+        var shown = SwarmSection.DisplayStatus(task);
         return new CursorSubagent(
             view.SessionId,
             view.Name,
             string.IsNullOrWhiteSpace(view.Task) ? task.Title : view.Task,
             view.State,
             view.Output,
-            task.Status,
+            shown,
             StartedAt: DateTimeOffset.UtcNow,
             UpdatedAt: DateTimeOffset.UtcNow,
-            CompletedAt: task.Status is SwarmStatus.Done or SwarmStatus.Failed ? DateTimeOffset.UtcNow : null);
+            CompletedAt: shown is SwarmStatus.Done or SwarmStatus.Failed ? DateTimeOffset.UtcNow : null);
     }
 }
 

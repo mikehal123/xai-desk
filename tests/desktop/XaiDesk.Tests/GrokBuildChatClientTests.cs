@@ -24,6 +24,7 @@ public sealed class GrokBuildChatClientTests
 
         var sessionNew = await transport.NextRequestAsync(ct);
         Assert.Equal("session/new", Method(sessionNew));
+        Assert.Equal(0, sessionNew.GetProperty("params").GetProperty("mcpServers").GetArrayLength());
         const string sessionId = "sess-1";
         transport.Reply(Id(sessionNew), new
         {
@@ -64,6 +65,84 @@ public sealed class GrokBuildChatClientTests
         Assert.DoesNotContain("Native subagents are enabled", PromptText(prompt));
         Assert.Contains("# Work Doctrine", PromptText(prompt));
         Assert.Contains("put the Work Doctrine text below at the top of that helper's task", PromptText(prompt));
+    }
+
+    [Fact(Timeout = 15000)]
+    public async Task Swarm_mode_session_new_attaches_the_manager_server_and_not_the_grok_bot_connector()
+    {
+        using var transport = new LineTransport();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+        var ct = timeout.Token;
+        var command = Path.Combine(Path.GetTempPath(), "swarm-manager-cmd-" + Guid.NewGuid().ToString("N"));
+        await File.WriteAllTextAsync(command, "manager", ct);
+        var workspace = Path.Combine(Path.GetTempPath(), "SIDesk", "grok-swarm-new");
+        using var client = new GrokBuildChatClient(workspace, transport.Reader, transport.Writer, new CursorProjectOptions
+        {
+            SwarmBrief = "Swarm mode.",
+            SwarmManagerCommand = command
+        });
+        try
+        {
+            var modelsTask = client.ModelsAsync(ct);
+            var initialize = await transport.NextRequestAsync(ct);
+            transport.Reply(Id(initialize), new { protocolVersion = 1 });
+            var sessionNew = await transport.NextRequestAsync(ct);
+            Assert.Equal("session/new", Method(sessionNew));
+            var server = Assert.Single(sessionNew.GetProperty("params").GetProperty("mcpServers").EnumerateArray());
+            Assert.Equal(SwarmManagerSession.ServerName, server.GetProperty("name").GetString());
+            Assert.Equal(command, server.GetProperty("command").GetString());
+            var raw = sessionNew.GetRawText();
+            Assert.DoesNotContain("8790", raw, StringComparison.Ordinal);
+            Assert.DoesNotContain("grokbot", raw, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("overrule", raw, StringComparison.OrdinalIgnoreCase);
+            transport.Reply(Id(sessionNew), new
+            {
+                sessionId = "sess-swarm",
+                models = new { availableModels = new[] { new { modelId = "grok-4.7", name = "Grok 4.7" } } }
+            });
+            var setMode = await transport.NextRequestAsync(ct);
+            transport.Reply(Id(setMode), new { accepted = true });
+            await modelsTask;
+        }
+        finally { if (File.Exists(command)) File.Delete(command); }
+    }
+
+    [Fact(Timeout = 15000)]
+    public async Task Swarm_mode_session_load_attaches_the_manager_server()
+    {
+        using var transport = new LineTransport();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+        var ct = timeout.Token;
+        var command = Path.Combine(Path.GetTempPath(), "swarm-manager-load-" + Guid.NewGuid().ToString("N"));
+        await File.WriteAllTextAsync(command, "manager", ct);
+        var workspace = Path.Combine(Path.GetTempPath(), "SIDesk", "grok-swarm-load");
+        using var client = new GrokBuildChatClient(workspace, transport.Reader, transport.Writer, new CursorProjectOptions
+        {
+            SwarmBrief = "Swarm mode.",
+            SwarmManagerCommand = command
+        });
+        client.ResumeSessionId = "stored-swarm";
+        try
+        {
+            var modelsTask = client.ModelsAsync(ct);
+            var initialize = await transport.NextRequestAsync(ct);
+            transport.Frame("{\"jsonrpc\":\"2.0\",\"id\":" + Id(initialize) + ",\"result\":{\"loadSession\":true}}");
+            var load = await transport.NextRequestAsync(ct);
+            Assert.Equal("session/load", Method(load));
+            var server = Assert.Single(load.GetProperty("params").GetProperty("mcpServers").EnumerateArray());
+            Assert.Equal(SwarmManagerSession.ServerName, server.GetProperty("name").GetString());
+            Assert.Equal(command, server.GetProperty("command").GetString());
+            Assert.DoesNotContain("8790", load.GetRawText(), StringComparison.Ordinal);
+            transport.Reply(Id(load), new
+            {
+                sessionId = "stored-swarm",
+                models = new { availableModels = new[] { new { modelId = "grok-4.7", name = "Grok 4.7" } } }
+            });
+            var setMode = await transport.NextRequestAsync(ct);
+            transport.Reply(Id(setMode), new { accepted = true });
+            await modelsTask;
+        }
+        finally { if (File.Exists(command)) File.Delete(command); }
     }
 
     [Fact(Timeout = 15000)]

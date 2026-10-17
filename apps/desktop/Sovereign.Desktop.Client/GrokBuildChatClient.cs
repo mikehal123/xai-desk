@@ -271,7 +271,7 @@ public sealed class GrokBuildChatClient : IDisposable
         {
             try
             {
-                var loaded = await CallAsync("session/load", new { sessionId = resume, cwd, mcpServers = Array.Empty<object>() }, null, ct);
+                var loaded = await CallAsync("session/load", new { sessionId = resume, cwd, mcpServers = SwarmManagerSession.McpServers(_project, initialize) }, null, ct);
                 return EnsureSessionId(loaded, resume);
             }
             catch (IOException)
@@ -280,7 +280,7 @@ public sealed class GrokBuildChatClient : IDisposable
                 ResumeSessionId = null;
             }
         }
-        return await CallAsync("session/new", new { cwd, mcpServers = Array.Empty<object>() }, null, ct);
+        return await CallAsync("session/new", new { cwd, mcpServers = SwarmManagerSession.McpServers(_project, initialize) }, null, ct);
     }
 
     /// <summary>

@@ -24,7 +24,7 @@ public static class SwarmLoop
         "swarm-" + board.Id + "-" + task.Id,
         task.Role + " · " + task.Title,
         task.Details,
-        SwarmBoard.PanelState(task.Status),
+        SwarmBoard.PanelState(SwarmSection.DisplayStatus(task)),
         string.IsNullOrWhiteSpace(task.Result) ? task.Proof : task.Result,
         SwarmRoles.Worker(task, board.BoardPath));
 
